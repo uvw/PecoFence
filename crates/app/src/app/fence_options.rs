@@ -72,6 +72,7 @@ pub(super) const FENCE_PROPS: &[&str] = &[
     "titleColor",
     "titleSize",
     "titleOnHover",
+    "titlePosition",
     "titleAlign",
     "collapsedSize",
     "layout",
@@ -125,6 +126,8 @@ pub(super) enum FenceProp {
     TitleSize(Option<TitleSize>),
     /// None = the global `rollUp.titleOnHover`.
     TitleOnHover(Option<bool>),
+    /// The edge the title bar runs along.
+    TitleEdge(pecofence_core::TitleEdge),
     /// None = the global `titleAlign`.
     TitleAlign(Option<pecofence_core::TitleAlign>),
     /// Whether the collapsed title row shrinks to what it shows; None = it keeps its width.
@@ -181,7 +184,10 @@ impl FenceProp {
     /// A title bar option: the inbox arranged like the desktop has no title bar, so the menu
     /// and the page grey these out there.
     pub(super) fn is_title_bar_option(&self) -> bool {
-        matches!(self, Self::TitleAlign(_) | Self::CollapsedSize(_))
+        matches!(
+            self,
+            Self::TitleEdge(_) | Self::TitleAlign(_) | Self::CollapsedSize(_)
+        )
     }
 
     /// The tool a property belongs to, None for one every fence has.
@@ -313,6 +319,15 @@ pub(super) fn parse_fence_prop(
                 _ => return Err(bad(ALLOWED)),
             })
         }
+        "titlePosition" => {
+            use pecofence_core::TitleEdge;
+            const ALLOWED: &[&str] = &["top", "bottom"];
+            FenceProp::TitleEdge(match as_str(ALLOWED)? {
+                "top" => TitleEdge::Top,
+                "bottom" => TitleEdge::Bottom,
+                _ => return Err(bad(ALLOWED)),
+            })
+        }
         "titleAlign" => {
             use pecofence_core::TitleAlign;
             const ALLOWED: &[&str] = &["default", "left", "center", "right"];
@@ -396,6 +411,14 @@ pub(super) fn parse_fence_prop(
             ));
         }
     })
+}
+
+pub(super) fn title_edge_name(edge: pecofence_core::TitleEdge) -> &'static str {
+    use pecofence_core::TitleEdge;
+    match edge {
+        TitleEdge::Top => "top",
+        TitleEdge::Bottom => "bottom",
+    }
 }
 
 /// String forms of `FenceView.layout` / `.sort` as the page, `fence get` and `fence set` use.
@@ -521,6 +544,36 @@ impl App {
         }
         self.schedule_save();
         true
+    }
+
+    /// Title bar position: the edge of the host its title bar runs along. A 向上展开 that
+    /// follows the title bar turns with it (`Fence::move_title_bar`) and a rolled title row stays
+    /// where it is, its rect recorded again around it. An open fence keeps its rect.
+    pub(super) fn set_fence_title_edge(&mut self, fence: FenceId, edge: pecofence_core::TitleEdge) {
+        let host = self.state.host_of(fence);
+        let Some(from) = self.state.fence(host).map(|f| f.title_edge()) else {
+            return;
+        };
+        if from == edge {
+            return;
+        }
+        self.state.move_title_bar(host, edge);
+        // Also hands the window the 向上展开 the move may have turned.
+        self.apply_fence_appearance(host);
+        if let Some(w) = self.fences.get(&host) {
+            // An open fence rolls up to its new title bar, so a bottom row keeps the bottom edge.
+            let open = !w.is_rolled();
+            // Rolled up, a row moved to the top without 向上展开 is the top of the fence now.
+            let top_down = edge == pecofence_core::TitleEdge::Top
+                && !self.state.fence(host).is_some_and(|f| f.expand_upward);
+            if open || top_down {
+                w.set_row_at_bottom(open && edge == pecofence_core::TitleEdge::Bottom);
+            }
+            let (rect, rolled, expanded) = (w.rect(), w.is_rolled(), w.expanded_height_px());
+            self.record_bounds(host, rect, rolled, expanded, "title bar");
+        }
+        self.apply_auto_height(host);
+        self.schedule_save();
     }
 
     /// None = the global Title alignment setting. A title row that shrinks while collapsed
@@ -781,6 +834,7 @@ impl App {
             "titleColor": title_color,
             "titleSize": title_size,
             "titleOnHover": title_on_hover,
+            "titlePosition": title_edge_name(h.title_edge()),
             "titleAlign": match h.appearance.as_ref().and_then(|a| a.title_align) {
                 None => "default",
                 Some(pecofence_core::TitleAlign::Left) => "left",
@@ -905,6 +959,7 @@ impl App {
                 self.set_fence_title_style(fence, title_rgb, size);
             }
             FenceProp::TitleOnHover(on) => self.set_fence_title_on_hover(fence, on),
+            FenceProp::TitleEdge(edge) => self.set_fence_title_edge(fence, edge),
             FenceProp::TitleAlign(align) => self.set_fence_title_align(fence, align),
             FenceProp::CollapsedSize(shrink) => self.set_fence_collapsed_size(fence, shrink),
             FenceProp::OpenFoldersInside(on) => self.set_fence_open_folders_inside(fence, on),

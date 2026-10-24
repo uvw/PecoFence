@@ -308,7 +308,8 @@ pub struct FenceViewState {
     /// downward (`clearance::expand_side`); the title row stays where the user put it.
     pub(super) expand_upward: bool,
     /// The title row is at the bottom: height changes (roll-up, expand, auto height) keep the
-    /// bottom edge in place. Set as a 向上展开 fence starts to expand, kept while it rolls back.
+    /// bottom edge in place. Set as a 向上展开 fence or a bottom title row starts to expand, kept
+    /// while it rolls back.
     pub(super) row_bottom: bool,
     /// The `row_bottom` the running height animation started with: it keeps moving that edge.
     pub(super) anim_upward: bool,
@@ -560,11 +561,18 @@ impl FenceViewState {
         self.desktop.is_some()
     }
 
+    /// Client point (`x`, `y`) lies in a tool's content: below a top title row, above a bottom
+    /// one and right of a left tab column.
+    fn in_tool_content(&self, x: i32, y: i32) -> bool {
+        let bottom = self.chrome_panel.size_px().1 - self.foot_px();
+        y >= self.content_y && y < bottom && x >= self.content_x
+    }
+
     /// 便签与待办: what a press at client point (`x`, `y`) in a note's content does: tick the
     /// to-do whose check box (with a little slack) is under it, else open the editor. None
     /// when this window shows no note or the point is not in its content.
     pub(super) fn note_press(&self, x: i32, y: i32) -> Option<Command> {
-        if self.note.is_none() || self.rolled_up || y < self.content_y || x < self.content_x {
+        if self.note.is_none() || self.rolled_up || !self.in_tool_content(x, y) {
             return None;
         }
         let scale = self.scale();
@@ -587,7 +595,7 @@ impl FenceViewState {
 
     /// 脚本栅栏: the clickable row at client point (`x`, `y`).
     pub(super) fn script_row_at(&self, x: i32, y: i32) -> Option<usize> {
-        if self.script.is_none() || self.rolled_up || y < self.content_y || x < self.content_x {
+        if self.script.is_none() || self.rolled_up || !self.in_tool_content(x, y) {
             return None;
         }
         let scale = self.scale();

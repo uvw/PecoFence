@@ -86,13 +86,23 @@ fn ctrl_wheel_skips_locked_fences_but_not_the_desktop_arranged_one() {
     assert!(ctrl_wheel_resizes(false, true));
 }
 
+/// A torn-off fence hangs from the cursor by its title row: the top one's middle, or the
+/// bottom one's.
+#[test]
+fn a_torn_off_tab_is_held_by_its_title_row() {
+    use super::tabs::title_grip;
+    use pecofence_core::TitleEdge;
+    assert_eq!(title_grip(TitleEdge::Top, 300, 200, 36), (150, 18));
+    assert_eq!(title_grip(TitleEdge::Bottom, 300, 200, 36), (150, 182));
+}
+
 mod ipc {
     use super::super::fence_options::{FenceProp, is_live_tick, parse_fence_prop};
     use super::super::ipc::{
         AUTO_SNAPSHOT_PREFIX, MAX_NAME_CHARS, MIN_EXPIRY_MS, adjusted, auto_snapshot_slot,
-        check_rule_conditions, checked_name, clamp_to_work, is_inbox_alias, patch_settings_path,
-        prune_auto_snapshots, request_expiry, rolled_back_settings, snapshot_changes, snapshot_dto,
-        validate_rect, visible_settings_json,
+        check_rule_conditions, checked_name, clamp_to_work, is_inbox_alias, kept_full_h,
+        patch_settings_path, prune_auto_snapshots, request_expiry, rolled_back_settings,
+        set_bounds_adjusted, snapshot_changes, snapshot_dto, validate_rect, visible_settings_json,
     };
     use pecofence_core::geometry::WorkArea;
     use pecofence_core::{Cond, MAX_SNAPSHOTS, Settings, Snapshot, ViewLayout};
@@ -556,6 +566,7 @@ mod ipc {
             "titleOnHover",
             "expandUpward",
             "portalTitleIcon",
+            "titlePosition",
             "titleAlign",
         ] {
             assert!(allowed.as_array().unwrap().contains(&json!(p)), "{allowed}");
@@ -626,6 +637,11 @@ mod ipc {
         // The expand direction is `expandUpward`; there is no separate property for it.
         assert!(parse_fence_prop("expandDirection", &json!("up")).is_err());
         assert_eq!(
+            parse_fence_prop("titlePosition", &json!("bottom")).unwrap(),
+            FenceProp::TitleEdge(pecofence_core::TitleEdge::Bottom)
+        );
+        assert!(parse_fence_prop("titlePosition", &json!("right")).is_err());
+        assert_eq!(
             parse_fence_prop("titleAlign", &json!("default")).unwrap(),
             FenceProp::TitleAlign(None)
         );
@@ -650,6 +666,7 @@ mod ipc {
         // The inbox arranged like the desktop refuses the title bar options. Title on hover
         // and 向上展开 stay settable there.
         for (prop, value, title_bar) in [
+            ("titlePosition", json!("bottom"), true),
             ("titleAlign", json!("right"), true),
             ("collapsedSize", json!("fit"), true),
             ("titleOnHover", json!("hover"), false),
@@ -808,6 +825,58 @@ mod ipc {
         assert_eq!(
             (a.applied.h, a.requested.h, a.reason.as_str()),
             (458, 517, "cellSnap")
+        );
+    }
+
+    /// `fence move --x/--y` sends the saved rect back: a rolled fence whose saved rect was cut
+    /// keeps the full height it opens to, and a new height replaces it.
+    #[test]
+    fn a_rolled_fence_moved_keeps_its_full_height() {
+        // Expanded 600 px, saved 140 px tall (cut at the bottom of the work area).
+        assert_eq!(kept_full_h(140, 140, 600), 600);
+        assert_eq!(kept_full_h(300, 140, 600), 300);
+        // Nothing cut: the saved height is the full one.
+        assert_eq!(kept_full_h(400, 400, 400), 400);
+        // Moved up, the saved rect gets all 600 px back: no adjustment to report.
+        let saved = rect(100, 900, 300, 140);
+        let moved = rect(100, 100, 300, 140);
+        assert_eq!(
+            set_bounds_adjusted(moved, Some((140, 600)), rect(100, 100, 300, 600), "clamped"),
+            None
+        );
+        // Moved a little, it stays cut as asked.
+        assert_eq!(
+            set_bounds_adjusted(saved, Some((140, 600)), saved, "clamped"),
+            None
+        );
+        // Moved off the edge, it is clamped onto the work area.
+        let a = set_bounds_adjusted(
+            rect(1800, 100, 300, 140),
+            Some((140, 600)),
+            rect(1620, 100, 300, 600),
+            "clamped",
+        )
+        .unwrap();
+        assert_eq!(
+            (a.applied.x, a.requested.x, a.reason.as_str()),
+            (1620, 1800, "clamped")
+        );
+    }
+
+    /// `fence move Work --x 100 --y 0 --w 300 --h 1500` on a 0..1040 work area: only the
+    /// height is clamped, and the reply says so against the request.
+    #[test]
+    fn a_clamped_height_alone_is_reported() {
+        let a = set_bounds_adjusted(
+            rect(100, 0, 300, 1500),
+            None,
+            rect(100, 0, 300, 1040),
+            "clamped",
+        )
+        .unwrap();
+        assert_eq!(
+            (a.requested.h, a.applied.h, a.reason.as_str()),
+            (1500, 1040, "clamped")
         );
     }
 
@@ -1023,25 +1092,35 @@ mod ipc {
     }
 }
 
-/// The Title bar submenu greys out what a left tab column has no use for, and nothing else.
+/// The Title bar submenu greys out what a left tab column has no use for, and nothing else; a
+/// bottom title row keeps its tabs in the row.
 #[test]
 fn the_title_menu_greys_what_a_tab_column_ignores() {
     use super::menus::{TitleMenuGreys, title_menu_greys};
-    use pecofence_core::TabBar;
+    use pecofence_core::{TabBar, TitleEdge};
     let column = TitleMenuGreys {
         align: true,
         shrink: true,
         hover: true,
         expand: false,
+        position: false,
     };
-    assert_eq!(title_menu_greys(true, TabBar::Left, false), column);
+    let none = TitleMenuGreys::default();
     assert_eq!(
-        title_menu_greys(true, TabBar::Top, false),
-        TitleMenuGreys::default()
+        title_menu_greys(TitleEdge::Top, true, TabBar::Left, false),
+        column
     );
     assert_eq!(
-        title_menu_greys(false, TabBar::Left, false),
-        TitleMenuGreys::default()
+        title_menu_greys(TitleEdge::Top, true, TabBar::Top, false),
+        none
+    );
+    assert_eq!(
+        title_menu_greys(TitleEdge::Top, false, TabBar::Left, false),
+        none
+    );
+    assert_eq!(
+        title_menu_greys(TitleEdge::Bottom, true, TabBar::Left, false),
+        none
     );
 }
 
@@ -1050,14 +1129,15 @@ fn the_title_menu_greys_what_a_tab_column_ignores() {
 #[test]
 fn the_title_menu_greys_everything_for_a_desktop_arranged_fence() {
     use super::menus::{TitleMenuGreys, title_menu_greys};
-    use pecofence_core::TabBar;
+    use pecofence_core::{TabBar, TitleEdge};
     let all = TitleMenuGreys {
         align: true,
         shrink: true,
         hover: true,
         expand: true,
+        position: true,
     };
     for bar in [TabBar::Top, TabBar::Left] {
-        assert_eq!(title_menu_greys(false, bar, true), all);
+        assert_eq!(title_menu_greys(TitleEdge::Top, false, bar, true), all);
     }
 }

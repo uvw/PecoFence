@@ -1150,6 +1150,12 @@ pub mod clearance {
         }
     }
 
+    /// Size a fence reopens to mid-roll, on the side it already moves: `want`, cut to the `room`
+    /// there but at least `least` (both at most `want`).
+    pub fn reopen_size(want: i32, least: i32, room: i32) -> i32 {
+        want.min(room).max(least.min(want))
+    }
+
     /// Highest top edge `r` may grow to (a fence that expands upward): `gap` below the nearest
     /// fence that shares some of its width and ends at or above its top edge.
     pub fn limit_above(others: &[RECT], r: &RECT, gap: i32) -> Option<i32> {
@@ -1428,6 +1434,16 @@ mod tests {
         assert_eq!(expand_side(300, 400, 400), (true, 300)); // both: up
         assert_eq!(expand_side(600, 336, 420), (false, 420));
         assert_eq!(expand_side(600, 420, 336), (true, 420));
+    }
+
+    /// A bottom title row opening again mid-roll keeps its side: it reopens cut to the room
+    /// there, never under its title row's height.
+    #[test]
+    fn a_row_reopening_mid_roll_keeps_to_the_room_on_its_side() {
+        use clearance::reopen_size;
+        assert_eq!(reopen_size(400, 37, 200), 200);
+        assert_eq!(reopen_size(400, 37, 900), 400);
+        assert_eq!(reopen_size(400, 37, 20), 37);
     }
 
     /// A dropped fence moves the shortest way out of the one it covers, stays inside the work

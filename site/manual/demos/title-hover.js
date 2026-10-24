@@ -38,7 +38,7 @@
     const TITLE_BAR = [
         { ic: '\uE737', t: '鼠标悬停时才显示标题栏', s: '平时只显示图标，让桌面更清爽；每个栅栏可在“栅栏”页单独设置', on: false },
         { ic: '\uE70E', t: '隐藏标题栏右侧的项目数和折叠箭头', s: '标题栏只显示名称；双击标题或用右键菜单收起和展开', on: false },
-        { ic: '\uE90C', t: '标签栏位置', s: '有多个标签页时，标签排在标题栏里，或在栅栏左侧排成一列', v: '顶部' },
+        { ic: '\uE90C', t: '标签栏位置', s: '有多个标签页时，标签排在标题栏里，或在栅栏左侧排成一列', s2: '标题栏在底部的栅栏不受影响', v: '顶部' },
         { ic: '\uE7C3', t: '鼠标悬停时切换标签页', s: '鼠标在标签页上停留片刻就切换过去，不用点击', on: true },
     ];
     const TARGET = 0;
@@ -66,8 +66,18 @@
         const sw = 130;
         return SM.select(SM.card(pg, { ic, t, s, textW: pg.cardW - sw - 60, ...o }), v, sw);
     }
+    // A list card with a second help line (`s2`) under the first, as the page's 标签栏位置 has.
+    function twoLineCard(pg, { ic, t, s, s2, v }) {
+        const sw = 130;
+        const c = SM.card(pg, { ic, t, s, h: 54, textW: pg.cardW - sw - 60 });
+        c.t.style.top = '8px';
+        c.s.style.top = '23px';
+        const line = el('div', 'set-s', c.n, T(s2));
+        Object.assign(line.style, { left: c.x0 + 'px', top: '36px', width: c.textW + 'px' });
+        return SM.select(c, v, sw);
+    }
     // A switch card or a list card, by whether d names a chosen item.
-    const anyCard = (pg, d) => d.v ? selectCard(pg, d, d.o) : toggleCard(pg, d, d.o);
+    const anyCard = (pg, d) => d.s2 ? twoLineCard(pg, d) : d.v ? selectCard(pg, d, d.o) : toggleCard(pg, d, d.o);
 
     function generalPage(w) {
         const { g, tiles } = SM.generalPage(w);
@@ -126,11 +136,12 @@
         const count = el('span', 'set-s', picker.n, T('{0} 个栅栏').replace('{0}', '2'));
         Object.assign(count.style, { right: '16px', top: '5px', color: '#8a8a8a' });
         SM.drawInput(SM.input(SM.card(f, { ic: '', t: '栅栏名称', textW: 160 }), '', 140), '程序', false, 0);
-        // 自动高度, 外观 and 布局 come before 标题栏 on the page; left out here, 显示标题栏 stays in
-        // view.
+        // 自动高度, 外观 and 布局 come before 标题栏 on the page and are left out here, so 显示标题栏
+        // stays in view under the 标题栏 cards above it.
         SM.h3(f, '标题栏');
         SM.select(SM.card(f, { ic: '', t: '标题颜色', s: '要跟随色调，请先选一种色调', textW: 190 }), '跟随主题', 100);
         SM.select(SM.card(f, { ic: '', t: '标题字号', s: '栅栏标题和标签页文字的大小', textW: 190 }), '标准', 100);
+        SM.select(SM.card(f, { ic: '', t: '标题栏位置', s: '放在底部时，标签页留在标题栏里，栅栏收向标题栏', textW: 190 }), '顶部', 100);
         SM.select(SM.card(f, { ic: '\uE8E4', t: '标题对齐', textW: 190 }), OPTIONS[0], 100);
         const mode = SM.select(SM.card(f, { ic: '', t: '显示标题栏', s: '鼠标悬停时显示：平时收起标题行，指针移到栅栏上才出现',
             textW: f.cardW - 34 - 120 - 24 }), OPTIONS[0], 120);

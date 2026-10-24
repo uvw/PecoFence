@@ -2230,11 +2230,11 @@ impl App {
                         }
                     })
                 };
-                let before = saved(&self.state);
+                let before = self.undo_place(fence);
                 self.record_bounds(fence, rect, rolled, expanded, "user");
                 // A move or resize (a roll keeps the expanded rect): Ctrl+Z puts it back.
                 if let Some(before) = before
-                    && saved(&self.state).is_some_and(|after| after != before)
+                    && saved(&self.state).is_some_and(|after| after != before.rect)
                 {
                     self.note_bounds_for_undo(fence, before);
                 }

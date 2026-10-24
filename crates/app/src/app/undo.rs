@@ -12,10 +12,10 @@ const UNDO_KEPT: usize = 20;
 const SAME_GESTURE: Duration = Duration::from_millis(400);
 
 pub(super) enum UndoStep {
-    /// Fences moved or resized: where each one was (its expanded rect, device px).
+    /// Fences moved or resized: where each one was.
     Bounds {
         at: Instant,
-        rects: Vec<(FenceId, RECT)>,
+        places: Vec<(FenceId, UndoPlace)>,
     },
     /// Desktop icons moved into `to`: where each one was.
     Items {
@@ -24,6 +24,53 @@ pub(super) enum UndoStep {
     },
     /// A fence deleted from its menu.
     Deleted(Box<DeletedFence>),
+}
+
+/// Where a fence rested before a move or resize: its saved rect (device px), the end of it a
+/// rolled title bar sat at, and the full height that rect was cut from.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) struct UndoPlace {
+    pub(super) rect: RECT,
+    pub(super) bottom_anchored: bool,
+    pub(super) full_h: i32,
+}
+
+/// How `put_fence_at` puts a fence back at an [`UndoPlace`].
+#[derive(Debug, PartialEq)]
+struct UndoGeometry {
+    /// The rect the window is restored to, and the height it opens to.
+    rect: RECT,
+    full_h: i32,
+    /// The end of `rect` its rolled title bar goes to; None leaves the window's own.
+    kept_end: Option<bool>,
+    /// Recorded at that end, without choosing a side again (`record_bounds_kept`).
+    kept: bool,
+}
+
+/// [`UndoGeometry`] for `place`, as `fence move` places a fence: a top title row with 向上展开
+/// rolled up goes to the bottom of the rect; a rolled bottom title row goes back to the end it
+/// was saved at and keeps the full height its saved rect was cut from.
+fn undo_geometry(
+    place: &UndoPlace,
+    edge: pecofence_core::TitleEdge,
+    rolled: bool,
+    expand_upward: bool,
+) -> UndoGeometry {
+    let h = place.rect.bottom - place.rect.top;
+    if rolled && edge != pecofence_core::TitleEdge::Top {
+        return UndoGeometry {
+            rect: place.rect,
+            full_h: place.full_h.max(h),
+            kept_end: Some(place.bottom_anchored),
+            kept: true,
+        };
+    }
+    UndoGeometry {
+        rect: place.rect,
+        full_h: h,
+        kept_end: (rolled && expand_upward).then_some(true),
+        kept: false,
+    }
 }
 
 impl UndoStep {
@@ -58,20 +105,36 @@ impl App {
         self.undo_notice = None;
     }
 
-    /// A user move or resize of `fence` that left `before` (its expanded rect until then).
-    pub(super) fn note_bounds_for_undo(&mut self, fence: FenceId, before: RECT) {
+    /// Where `fence` rests now, for Ctrl+Z after a move or resize.
+    pub(super) fn undo_place(&self, fence: FenceId) -> Option<UndoPlace> {
+        let f = self.state.fence(fence)?;
+        let r = self.state.fence_px_rect(f);
+        Some(UndoPlace {
+            rect: RECT {
+                left: r.left,
+                top: r.top,
+                right: r.right,
+                bottom: r.bottom,
+            },
+            bottom_anchored: f.bottom_anchored,
+            full_h: self.state.fence_expanded_px(f),
+        })
+    }
+
+    /// A user move or resize of `fence` that left `before` (where it rested until then).
+    pub(super) fn note_bounds_for_undo(&mut self, fence: FenceId, before: UndoPlace) {
         let now = Instant::now();
-        if let Some(UndoStep::Bounds { at, rects }) = self.undo.last_mut()
+        if let Some(UndoStep::Bounds { at, places }) = self.undo.last_mut()
             && now.duration_since(*at) < SAME_GESTURE
-            && !rects.iter().any(|(f, _)| *f == fence)
+            && !places.iter().any(|(f, _)| *f == fence)
         {
-            rects.push((fence, before));
+            places.push((fence, before));
             *at = now;
             return;
         }
         self.push_undo(UndoStep::Bounds {
             at: now,
-            rects: vec![(fence, before)],
+            places: vec![(fence, before)],
         });
     }
 
@@ -117,10 +180,10 @@ impl App {
     fn apply_undo(&mut self, step: UndoStep, from: &'static str) {
         let kind = step.kind();
         let done = match step {
-            UndoStep::Bounds { rects, .. } => {
+            UndoStep::Bounds { places, .. } => {
                 let mut n = 0;
-                for (fence, rect) in rects {
-                    n += usize::from(self.put_fence_at(fence, rect));
+                for (fence, place) in places {
+                    n += usize::from(self.put_fence_at(fence, &place));
                 }
                 n
             }
@@ -160,9 +223,9 @@ impl App {
         }
     }
 
-    /// Moves `fence` back to `rect` (its expanded rect) the way `fence move` does. False when
-    /// it is gone, a tab, or placed by 像桌面一样排列.
-    fn put_fence_at(&mut self, fence: FenceId, rect: RECT) -> bool {
+    /// Moves `fence` back to `place` the way `fence move` does. False when it is gone, a tab,
+    /// or placed by 像桌面一样排列.
+    fn put_fence_at(&mut self, fence: FenceId, place: &UndoPlace) -> bool {
         if self.state.fence(fence).is_none_or(|f| f.tab_host.is_some()) {
             return false;
         }
@@ -177,13 +240,25 @@ impl App {
             .fence(fence)
             .map_or_else(|| w.is_rolled(), |f| f.rolled_up || w.is_rolled());
         self.ctx.behavior.release_push(w.hwnd());
-        if rolled && self.state.fence(fence).is_some_and(|f| f.expand_upward) {
-            w.set_row_at_bottom(true);
+        let (edge, upward) = self
+            .state
+            .fence(fence)
+            .map_or((pecofence_core::TitleEdge::Top, false), |f| {
+                (f.title_edge(), f.expand_upward)
+            });
+        let g = undo_geometry(place, edge, rolled, upward);
+        if let Some(end) = g.kept_end {
+            w.set_row_at_bottom(end);
         }
-        let h = rect.bottom - rect.top;
-        w.restore_geometry(rect, rolled, h);
-        self.record_bounds(fence, rect, rolled, h, "undo");
-        self.apply_auto_height(fence);
+        w.restore_geometry(g.rect, rolled, g.full_h);
+        if g.kept {
+            let bar = w.rect();
+            self.record_bounds_kept(fence, bar, true, g.full_h, "undo");
+            self.apply_auto_height_kept(fence);
+        } else {
+            self.record_bounds(fence, g.rect, rolled, g.full_h, "undo");
+            self.apply_auto_height(fence);
+        }
         true
     }
 
@@ -218,5 +293,82 @@ impl App {
         if event == crate::notice::NoticeEvent::Action {
             self.undo_delete_of(fence);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use pecofence_core::TitleEdge;
+
+    const BAR: i32 = 36;
+
+    fn rect(top: i32, bottom: i32) -> RECT {
+        RECT {
+            left: 100,
+            top,
+            right: 400,
+            bottom,
+        }
+    }
+
+    /// Top of the rolled title bar the window shows at `g`: at the end `kept_end` names.
+    fn bar_top(g: &UndoGeometry) -> i32 {
+        let anchor = if g.kept_end == Some(true) { 1.0 } else { 0.0 };
+        crate::fence_window::anchored_start(g.rect.top, g.rect.bottom - g.rect.top, BAR, anchor)
+    }
+
+    /// A rolled bottom row resting at 1000 (its saved rect 700..1036 opens upward) is dragged
+    /// to 50, where it opens downward. Ctrl+Z puts its row back at 1000, not at 700.
+    #[test]
+    fn undo_puts_a_rolled_bottom_row_back_at_its_end() {
+        let place = UndoPlace {
+            rect: rect(700, 1036),
+            bottom_anchored: true,
+            full_h: 336,
+        };
+        let g = undo_geometry(&place, TitleEdge::Bottom, true, true);
+        assert_eq!((g.kept_end, g.kept), (Some(true), true));
+        assert_eq!(bar_top(&g), 1000);
+        // Saved opening downward, it goes back to the top of its rect.
+        let down = UndoPlace {
+            bottom_anchored: false,
+            ..place
+        };
+        assert_eq!(
+            bar_top(&undo_geometry(&down, TitleEdge::Bottom, true, false)),
+            700
+        );
+    }
+
+    /// A saved rect cut to the room keeps the full height it opens to.
+    #[test]
+    fn undo_keeps_the_full_height_of_a_cut_rect() {
+        let place = UndoPlace {
+            rect: rect(700, 1036),
+            bottom_anchored: true,
+            full_h: 600,
+        };
+        assert_eq!(
+            undo_geometry(&place, TitleEdge::Bottom, true, true).full_h,
+            600
+        );
+    }
+
+    /// A top title row goes back as `fence move` puts it: the rect's height, at the bottom of
+    /// the rect only when rolled with 向上展开.
+    #[test]
+    fn undo_of_a_top_row_follows_fence_move() {
+        let place = UndoPlace {
+            rect: rect(700, 1036),
+            bottom_anchored: true,
+            full_h: 600,
+        };
+        let g = undo_geometry(&place, TitleEdge::Top, true, false);
+        assert_eq!((g.full_h, g.kept_end, g.kept), (336, None, false));
+        let g = undo_geometry(&place, TitleEdge::Top, true, true);
+        assert_eq!((g.kept_end, bar_top(&g)), (Some(true), 1000));
+        let g = undo_geometry(&place, TitleEdge::Top, false, true);
+        assert_eq!((g.rect, g.full_h, g.kept_end), (place.rect, 336, None));
     }
 }

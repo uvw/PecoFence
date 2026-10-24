@@ -531,7 +531,7 @@
       <h3>标题栏与标签页</h3>
       <div class="card"><div class="l"><span class="ic">&#xE737;</span><div><div class="t">鼠标悬停时才显示标题栏</div><div class="s">平时只显示图标，让桌面更清爽；每个栅栏可在“栅栏”页单独设置</div></div></div><div class="toggle" role="switch" tabindex="0" data-bind="rollUp.titleOnHover"></div></div>
       <div class="card"><div class="l"><span class="ic">&#xE70E;</span><div><div class="t">隐藏标题栏右侧的项目数和折叠箭头</div><div class="s">标题栏只显示名称；双击标题或用右键菜单收起和展开</div></div></div><div class="toggle" role="switch" tabindex="0" data-bind="rollUp.hideCountAndChevron"></div></div>
-      <div class="card"><div class="l"><span class="ic">&#xE90C;</span><div><div class="t">标签栏位置</div><div class="s">有多个标签页时，标签排在标题栏里，或在栅栏左侧排成一列</div></div></div>
+      <div class="card"><div class="l"><span class="ic">&#xE90C;</span><div><div class="t">标签栏位置</div><div class="s">有多个标签页时，标签排在标题栏里，或在栅栏左侧排成一列</div><div class="s">标题栏在底部的栅栏不受影响</div></div></div>
         <select data-bind="tabBar"><option value="top">顶部</option><option value="left">左侧</option></select></div>
       <div class="card"><div class="l"><span class="ic">&#xE7C3;</span><div><div class="t">鼠标悬停时切换标签页</div><div class="s">鼠标在标签页上停留片刻就切换过去，不用点击</div></div></div><div class="toggle" role="switch" tabindex="0" data-bind="rollUp.switchTabOnHover"></div></div>
       <h3>吸附与对齐</h3>
@@ -603,6 +603,8 @@
         <select id="fenceTitleColor" data-fence="titleColor"><option value="theme">跟随主题</option><option value="tint">跟随色调</option><option value="white">白色</option><option value="black">黑色</option></select></div>
       <div class="card"><div class="l"><span class="ic">&#xE8E9;</span><div><div class="t">标题字号</div><div class="s">栅栏标题和标签页文字的大小</div></div></div>
         <select id="fenceTitleSize" data-fence="titleSize"><option value="small">小</option><option value="normal">标准</option><option value="large">大</option><option value="extraLarge">特大</option></select></div>
+      <div class="card" id="fenceTitlePositionCard"><div class="l"><span class="ic">&#xE8A0;</span><div><div class="t">标题栏位置</div><div class="s">放在底部时，标签页留在标题栏里，栅栏收向标题栏</div></div></div>
+        <select id="fenceTitlePosition" data-fence="titlePosition"><option value="top">顶部</option><option value="bottom">底部</option></select></div>
       <div class="card" id="fenceTitleAlignCard"><div class="l"><span class="ic">&#xE8E4;</span><div><div class="t">标题对齐</div><div class="s" hidden></div></div></div>
         <select id="fenceTitleAlign" data-fence="titleAlign"><option value="default">跟随常规设置</option><option value="left">左对齐</option><option value="center">居中</option><option value="right">右对齐</option></select></div>
       <div class="card"><div class="l"><span class="ic">&#xE737;</span><div><div class="t">显示标题栏</div><div class="s">鼠标悬停时显示：平时收起标题行，指针移到栅栏上才出现</div></div></div>
@@ -615,7 +617,7 @@
       <div class="card" id="fenceHideEmpty"><div class="l"><span class="ic">&#xED1A;</span><div><div class="t">为空时自动隐藏</div><div class="s">里面没有图标时就不显示；桌面上一出现新图标，它会自己回来</div></div></div><div class="toggle" role="switch" tabindex="0" data-fence="hideWhenEmpty"></div></div>
       <div class="card" id="fenceDesktopLayout"><div class="l"><span class="ic">&#xE80A;</span><div><div class="t">像桌面一样排列</div><div class="s">图标像 Windows 桌面上一样从屏幕左上角一列一列往下排，绕开其他栅栏。关闭后“桌面”变回普通栅栏，可以移动和调整大小</div></div></div><div class="toggle" role="switch" tabindex="0" data-fence="desktopLayout"></div></div>
       <div class="card" id="fenceFreePlacement"><div class="l"><span class="ic">&#xE7C2;</span><div><div class="t">自由摆放</div><div class="s">图标拖到桌面上哪里，就停在哪个格子里，像 Windows 桌面关掉“自动排列图标”时一样。关闭后图标按顺序排列</div></div></div><div class="toggle" role="switch" tabindex="0" data-fence="freePlacement"></div></div>
-      <div class="card"><div class="l"><span class="ic">&#xE74A;</span><div><div class="t">停靠到屏幕顶部</div><div class="s">贴到屏幕顶边并收起，鼠标悬停时展开，像一个下拉抽屉</div></div></div><button id="fenceDock">停靠</button></div>
+      <div class="card"><div class="l"><span class="ic">&#xE74A;</span><div><div class="t">停靠到屏幕顶部</div><div class="s">贴到屏幕顶边并收起，鼠标悬停时展开，像一个下拉抽屉</div><div class="s">停靠时标题栏回到顶部</div></div></div><button id="fenceDock">停靠</button></div>
       <div class="card" id="fenceOpenFolders"><div class="l"><span class="ic">&#xE838;</span><div><div class="t">双击文件夹或文件夹快捷方式时在此栅栏内打开</div><div class="s">在栅栏里显示文件夹的内容，点向上箭头或按 Backspace 回到原来的图标</div></div></div><div class="toggle" role="switch" tabindex="0" data-fence="openFoldersInside"></div></div>
       <div id="fencePortalGroup">
       <h3 id="fencePortalHeading"></h3>
@@ -1073,12 +1075,14 @@
   }
   syncLiquidPreview();
 
-  // Associate custom switches and standalone comboboxes with their visible card text.
+  // Associate custom switches and standalone comboboxes with their visible card text: the title
+  // and every help line of the card.
   document.querySelectorAll('[data-bind], [data-fence]').forEach((el, i) => {
-    const card = el.closest('.card'), title = card.querySelector('.t'), help = card.querySelector('.s');
+    const card = el.closest('.card'), title = card.querySelector('.t'), helps = [...card.querySelectorAll('.s')];
     title.id = 'setting-title-' + i;
     el.setAttribute('aria-labelledby', title.id);
-    if (help) { help.id = 'setting-help-' + i; el.setAttribute('aria-describedby', help.id); }
+    helps.forEach((help, k) => { help.id ||= 'setting-help-' + i + (k ? '-' + k : ''); });
+    if (helps.length) el.setAttribute('aria-describedby', helps.map(help => help.id).join(' '));
   });
   const fenceTintSwatches = document.getElementById('fenceTintSwatches');
   fenceTintSwatches.setAttribute('aria-labelledby', fenceTintSwatches.closest('.card').querySelector('.t').id);
@@ -1132,6 +1136,7 @@
     ['#newScript', t("搜索别名\x04插件|天气|命令|自定义")],
     ['#fenceOpacity', t("搜索别名\x04透明度|透明|玻璃")],
     ['[data-fence=locked]', t("搜索别名\x04固定|锁住|防止移动")],
+    ['#fenceTitlePosition', t("搜索别名\x04底部标题栏|标题栏在下面|标题在底部")],
     ['[data-bind="rules.keepUpdated"]', t("搜索别名\x04自动整理|自动分类|分类")],
     ['#cfgExport', t("搜索别名\x04备份|迁移|换电脑|恢复设置")],
     ['#updateAction', t("搜索别名\x04升级|新版本|检查更新")],
@@ -1774,15 +1779,19 @@
     if (tabSel.innerHTML !== tabPalette) tabSel.innerHTML = tabPalette;
     document.getElementById('fenceTintTitleOnly').style.display = f.tint ? '' : 'none';
     document.getElementById('fenceTabColor').style.display = f.host || f.tabbed ? '' : 'none';
-    // 标签栏位置 → 左侧 lists the tabs in a column, where alignment, shrinking and title on hover
-    // do not apply.
-    const tabColumn = state.settings.tabBar === 'left' && !!(f.host || f.tabbed);
+    // 标签栏位置 → 左侧 lists the tabs of a fence with its title bar at the top in a column, where
+    // alignment, shrinking and title on hover do not apply.
+    const tabColumn = state.settings.tabBar === 'left' && !!(f.host || f.tabbed) && f.titlePosition !== 'bottom';
     // 像桌面一样排列 leaves the fence without a title bar, and it never rolls (the menu agrees).
     const arranged = !!f.desktopArranged, bare = t("像桌面一样排列时没有标题栏");
+    setApplies(document.getElementById('fenceTitlePositionCard'), !arranged, t("放在底部时，标签页留在标题栏里，栅栏收向标题栏"), bare);
     setApplies(document.getElementById('fenceTitleAlignCard'), !tabColumn && !arranged, '', arranged ? bare : t("标签排成一列时从上往下排，不跟随标题对齐"));
     setApplies(document.getElementById('fenceCollapsedSize'), !tabColumn && !arranged, t("收起后标题栏只有标题或标签页那么长，而不是和栅栏一样长"), arranged ? bare : t("标签栏位置为左侧时，收起的栅栏总是缩成标签那一列"));
     setApplies(document.getElementById('fenceTitleOnHover').closest('.card'), !tabColumn && !arranged, t("鼠标悬停时显示：平时收起标题行，指针移到栅栏上才出现"), arranged ? bare : t("标题栏排成一列时总是显示"));
-    setApplies(document.getElementById('fenceExpandUpward'), !arranged, t("上方放得下时向上展开，放不下就向下展开；标题栏留在原处。适合放在任务栏上方的栅栏"), bare);
+    // The help line under 向上展开 follows the title edge.
+    setApplies(document.getElementById('fenceExpandUpward'), !arranged, f.titlePosition === 'bottom'
+      ? t("上方放得下时从标题栏向上展开，放不下就向下展开")
+      : t("上方放得下时向上展开，放不下就向下展开；标题栏留在原处。适合放在任务栏上方的栅栏"), bare);
     document.querySelectorAll('[data-fence]').forEach(el => {
       const prop = el.dataset.fence;
       const cur = prop === 'portalNavigate' ? !!(f.portal && f.portal.navigate) : prop === 'portalTitleIcon' ? !!(f.portal && f.portal.titleIcon) : prop === 'collapsedSize' ? f.collapsedShrinks : f[prop];

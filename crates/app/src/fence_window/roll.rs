@@ -208,7 +208,11 @@ impl FenceViewState {
     /// has folded away (the shadow casts from this).
     pub(super) fn plate_rect(&self) -> RECT {
         let mut r = window::window_rect(self.hwnd);
-        r.top = (r.top + self.plate_inset_px).min(r.bottom - 1);
+        if self.title_bottom() {
+            r.bottom = (r.bottom - self.plate_inset_px).max(r.top + 1);
+        } else {
+            r.top = (r.top + self.plate_inset_px).min(r.bottom - 1);
+        }
         r
     }
 
@@ -257,7 +261,7 @@ impl FenceViewState {
         } else {
             0
         };
-        let below = if self.expand_upward || self.row_bottom {
+        let below = if self.chooses_side() || self.row_bottom {
             0
         } else {
             (rest.top + self.expanded_h_px - rest.bottom).max(0)
@@ -548,24 +552,26 @@ impl FenceViewState {
             .map(|t| t.id)
             .zip(self.tab_draw_xs(now))
             .collect();
-        // 向上展开: which way the fence opens is decided as it starts to expand, from the room
-        // on either side of its title row, which stays where it is. A roll that takes over a
-        // running height animation keeps moving the same edge.
-        let side = (!rolled && self.expand_upward && !self.height_animating()).then(|| {
-            let want = if self.auto_height {
-                self.wanted_height_px()
-            } else {
-                self.expanded_h_px.max(self.title_h_px() + 40)
-            };
-            let (above, below) = self.expand_rooms_px();
-            crate::layout::clearance::expand_side(want, above, below)
-        });
+        // 向上展开 or a bottom title row: which way the fence opens is decided as it starts to
+        // expand, from the room on either side of its title row, which stays where it is. A roll
+        // that takes over a running height animation keeps moving the same edge.
+        let side = if rolled || self.height_animating() {
+            None
+        } else {
+            self.expand_side()
+        };
         if let Some((up, _)) = side {
             self.row_bottom = up;
         }
         if !self.height_animating() {
             self.anim_upward = self.row_bottom;
         }
+        // A bottom title row opening again before it finished rolling up keeps its side, cut to
+        // the room there.
+        let side = side.or_else(|| {
+            (!rolled && self.title_bottom() && self.height_animating())
+                .then(|| (self.anim_upward, self.reopen_height_px()))
+        });
         // The roll owns the height (and the content panel) from here on.
         self.height_anim = None;
         self.finish_content_swap_now();
@@ -615,9 +621,10 @@ impl FenceViewState {
             // Rasterise the content once at its final size; the growing HWND reveals it.
             let w = to_w.unwrap_or_else(|| self.chrome_panel.size_px().0);
             let top = self.content_y;
-            let _ = self
-                .content_panel
-                .resize((w - self.content_x).max(1), (to_h - top).max(1));
+            let _ = self.content_panel.resize(
+                (w - self.content_x).max(1),
+                (to_h - top - self.foot_px()).max(1),
+            );
             self.content_panel
                 .visual
                 .set_offset(self.content_x as f32, top as f32, 0.0);
@@ -667,6 +674,40 @@ impl FenceViewState {
         self.frames.request();
     }
 
+    /// Which way the rolled fence opens, and how far: `Some((row_bottom, height))` for a title
+    /// row with 向上展开 or at the bottom (`clearance::expand_side`). None for a top title row
+    /// without 向上展开, which opens downward.
+    fn expand_side(&self) -> Option<(bool, i32)> {
+        if !self.chooses_side() {
+            return None;
+        }
+        let want = self.expand_want_px();
+        let (above, below) = self.expand_rooms_px();
+        if !self.expand_upward {
+            // A bottom title row set to open downward still opens upward where only that fits.
+            let (down, h) = crate::layout::clearance::expand_side(want, below, above);
+            return Some((!down, h));
+        }
+        Some(crate::layout::clearance::expand_side(want, above, below))
+    }
+
+    /// Height (device px) the fence wants to open to.
+    fn expand_want_px(&self) -> i32 {
+        if self.auto_height {
+            self.wanted_height_px()
+        } else {
+            self.expanded_h_px.max(self.title_h_px() + 40)
+        }
+    }
+
+    /// Height (device px) a title row reopens to on the side its running animation keeps:
+    /// the height it wants, cut to the room there.
+    fn reopen_height_px(&self) -> i32 {
+        let (above, below) = self.expand_rooms_px();
+        let room = if self.anim_upward { above } else { below };
+        crate::layout::clearance::reopen_size(self.expand_want_px(), self.title_h_px() + 1, room)
+    }
+
     /// Starts (or retargets) the auto-height settle towards `to_h`: 250 ms point-to-point,
     /// the Fluent value for a container changing size in place. Returns false when the caller
     /// should snap instead (tiny change, animations off, window hidden, or a roll owns the
@@ -695,7 +736,7 @@ impl FenceViewState {
             }
         }
         let (w, ch) = self.content_panel.size_px();
-        let target_ch = (to_h - self.content_y).max(1);
+        let target_ch = (to_h - self.content_y - self.foot_px()).max(1);
         if target_ch > ch {
             let _ = self.content_panel.resize(w, target_ch);
             let _ = self.redraw_content();

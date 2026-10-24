@@ -128,25 +128,23 @@ pub(super) fn on_app_desktop_shape(
 pub(super) fn on_app_tab_rail(
     h: &HandlerCtx,
     _hwnd: HWND,
-    _wparam: usize,
+    wparam: usize,
     _lparam: isize,
 ) -> Option<isize> {
     let HandlerCtx { view, .. } = h;
-    let rail = view
+    let value = view
         .try_borrow()
         .ok()
-        // -1: a fence arranged like the desktop (像桌面一样排列) or a note takes no merge.
         .and_then(|g| {
-            g.as_ref().map(|v| {
-                if v.bare() || v.shows_tool() {
-                    -1
-                } else {
-                    v.content_x
-                }
+            g.as_ref().map(|v| match wparam {
+                1 => v.title_top_px(),
+                // -1: a fence arranged like the desktop (像桌面一样排列) or a note takes no merge.
+                _ if v.bare() || v.shows_tool() => -1,
+                _ => v.content_x,
             })
         })
         .unwrap_or(0);
-    Some(rail as isize)
+    Some(value as isize)
 }
 
 /// `lparam` of a fade completion that the fallback timer delivered (the compositor's is 0).

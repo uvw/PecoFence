@@ -179,8 +179,8 @@ fence), `tint` `"#RRGGBB"` or `null`, `tintTitleOnly` (the tint washes only the 
 `tabColor` `"#RRGGBB"` or `null` (the bar under the fence's tab in a tab strip; `null` follows its
 tint), `titleColor` theme/tint/white/black/`"#RRGGBB"`, `titleSize` small/normal/large/extraLarge,
 `titleOnHover` default/hover/always (hover: the title row folds away until the pointer is over the
-fence; default follows `rollUp.titleOnHover`), `titleAlign` and `collapsedSize` (title bar
-options, below), `layout` icons/list/details,
+fence; default follows `rollUp.titleOnHover`), `titlePosition`, `titleAlign` and
+`collapsedSize` (title bar options, below), `layout` icons/list/details,
 `sort` manual/name/type/date/size/openCount, `reverse`, `groupByDate`, `foldersFirst` (folders above files in a sorted fence), `labelLines` 0/1/2/3 (lines
 of the label under each icon in the icons layout; 0 shows the icons without labels),
 `openFoldersInside` (any fence but a portal: double-clicking a folder, or a shortcut to a folder,
@@ -201,9 +201,14 @@ skips tabs hosted inside another fence (their options belong to the host).
 
 The title bar options of `fence set`:
 
+- `titlePosition` top/bottom. At the bottom, the fence picks its side at each expansion: upward
+  first with `expandUpward`, downward first without it. Moved to the top or the bottom, the title
+  bar sets `expandUpward` to follow it: off at the top, on at the bottom. A fence at the top shows
+  its tabs as the `tabBar` setting says. One at the bottom keeps them in its title row.
+  `fence dock-top` moves the title bar back to the top.
 - `titleAlign` default/left/center/right. Default follows the `titleAlign` setting. Set to right
   here, the chevron and item count move to the start of the title row, even when the setting is
-  right too.
+  right too. A bottom title row aligned right puts them at the start as well.
 - `collapsedSize` default/fit/full. Fit makes a collapsed title row only as long as its title or
   tabs, and default keeps it at the fence's width. `true` and `false` mean fit and full.
   `fence get` adds `collapsedShrinks`, the effective choice.
@@ -292,7 +297,7 @@ or tab with a `titleColor` of its own keeps it; default auto),
 style; see [THEMES.md](THEMES.md)),
 `tabBar` (top/left: a fence with two or more tabs shows them in its title row, or lists them in a
 column on its left that takes the title row's place; rolled up, such a fence shrinks to the
-column; default top),
+column; default top; only fences with `titlePosition` top follow it),
 `rollUp.hoverPeek` and `rollUp.clickToExpand` (the settings page's 「收起的栅栏怎么展开」 list:
 `clickToExpand` true expands a rolled fence on one title click, rolls an open one up on the next,
 and ignores `hoverPeek` for the pointer (the page
