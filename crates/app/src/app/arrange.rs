@@ -67,7 +67,7 @@ impl App {
     pub(super) fn grid_steps(&self, id: FenceId, scale: f32) -> Option<GridSteps> {
         let shown = self.state.fence(self.state.active_tab_of(id))?;
         let metrics = GridSpec::of(&shown.view).metrics(self.ctx.chrome.label_line_h());
-        // A left tab column sits before the first icon column, and replaces the title row.
+        // A title column sits before the first icon column, and replaces the title row.
         let rail = self.fences.get(&id).map_or(0.0, |w| w.tab_rail_dip());
         let title_h = if rail > 0.0 {
             0.0
@@ -338,7 +338,7 @@ impl App {
         let Some(w) = self.fences.get(&id) else {
             return;
         };
-        // Collapsed to its left tab column, the fence expands to its own width too.
+        // Collapsed to its title column, the fence expands to its own width too.
         let r = w.footprint_rect();
         let expanded = w.expanded_height_px();
         let scale = monitors::dpi_for_window(w.hwnd()).max(96) as f32 / 96.0;
@@ -355,7 +355,9 @@ impl App {
             return;
         }
         w.set_expanded_height_px(h);
-        self.record_bounds(id, r, true, h, "expand clamp");
+        // The window, not the footprint: a title column records its side from its own rect.
+        let rect = w.rect();
+        self.record_bounds(id, rect, true, h, "expand clamp");
     }
 
     /// Where a notice in the corner (`crate::notice`) must not go: the fence windows on show,

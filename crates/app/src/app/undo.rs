@@ -27,12 +27,14 @@ pub(super) enum UndoStep {
 }
 
 /// Where a fence rested before a move or resize: its saved rect (device px), the end of it a
-/// rolled title bar sat at, and the full height that rect was cut from.
+/// rolled title row or column sat at, and the full size that rect was cut from.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(super) struct UndoPlace {
     pub(super) rect: RECT,
     pub(super) bottom_anchored: bool,
+    pub(super) right_anchored: bool,
     pub(super) full_h: i32,
+    pub(super) full_w: i32,
 }
 
 /// How `put_fence_at` puts a fence back at an [`UndoPlace`].
@@ -45,11 +47,14 @@ struct UndoGeometry {
     kept_end: Option<bool>,
     /// Recorded at that end, without choosing a side again (`record_bounds_kept`).
     kept: bool,
+    /// The width a title column opens to (`set_expanded_width_px`).
+    full_w: Option<i32>,
 }
 
 /// [`UndoGeometry`] for `place`, as `fence move` places a fence: a top title row with 向上展开
-/// rolled up goes to the bottom of the rect; a rolled bottom title row goes back to the end it
-/// was saved at and keeps the full height its saved rect was cut from.
+/// rolled up goes to the bottom of the rect; a rolled bottom title row or title column goes back
+/// to the end it was saved at and keeps the full size its saved rect was cut from. A column
+/// opens down from its top, the whole height.
 fn undo_geometry(
     place: &UndoPlace,
     edge: pecofence_core::TitleEdge,
@@ -57,12 +62,26 @@ fn undo_geometry(
     expand_upward: bool,
 ) -> UndoGeometry {
     let h = place.rect.bottom - place.rect.top;
+    let full_w = edge.is_side().then_some(place.full_w);
     if rolled && edge != pecofence_core::TitleEdge::Top {
+        let full_h = place.full_h.max(h);
+        let (rect, end) = if edge.is_side() {
+            (
+                RECT {
+                    bottom: place.rect.top + full_h,
+                    ..place.rect
+                },
+                place.right_anchored,
+            )
+        } else {
+            (place.rect, place.bottom_anchored)
+        };
         return UndoGeometry {
-            rect: place.rect,
-            full_h: place.full_h.max(h),
-            kept_end: Some(place.bottom_anchored),
+            rect,
+            full_h,
+            kept_end: Some(end),
             kept: true,
+            full_w,
         };
     }
     UndoGeometry {
@@ -70,6 +89,7 @@ fn undo_geometry(
         full_h: h,
         kept_end: (rolled && expand_upward).then_some(true),
         kept: false,
+        full_w,
     }
 }
 
@@ -117,7 +137,9 @@ impl App {
                 bottom: r.bottom,
             },
             bottom_anchored: f.bottom_anchored,
+            right_anchored: f.right_anchored,
             full_h: self.state.fence_expanded_px(f),
+            full_w: self.state.fence_expanded_w_px(f),
         })
     }
 
@@ -248,9 +270,12 @@ impl App {
             });
         let g = undo_geometry(place, edge, rolled, upward);
         if let Some(end) = g.kept_end {
-            w.set_row_at_bottom(end);
+            w.set_kept_end(end);
         }
         w.restore_geometry(g.rect, rolled, g.full_h);
+        if let Some(full_w) = g.full_w {
+            w.set_expanded_width_px(full_w);
+        }
         if g.kept {
             let bar = w.rect();
             self.record_bounds_kept(fence, bar, true, g.full_h, "undo");
@@ -325,7 +350,9 @@ mod tests {
         let place = UndoPlace {
             rect: rect(700, 1036),
             bottom_anchored: true,
+            right_anchored: false,
             full_h: 336,
+            full_w: 300,
         };
         let g = undo_geometry(&place, TitleEdge::Bottom, true, true);
         assert_eq!((g.kept_end, g.kept), (Some(true), true));
@@ -347,11 +374,44 @@ mod tests {
         let place = UndoPlace {
             rect: rect(700, 1036),
             bottom_anchored: true,
+            right_anchored: false,
             full_h: 600,
+            full_w: 300,
         };
         assert_eq!(
             undo_geometry(&place, TitleEdge::Bottom, true, true).full_h,
             600
+        );
+    }
+
+    /// A rolled column saved at its right end, its rect (100..400 wide, 100..500 tall) cut from
+    /// 500 x 800, was dragged to the other side. Ctrl+Z puts it back at its right end with the
+    /// full height and width it opens to.
+    #[test]
+    fn undo_puts_a_rolled_column_back_at_its_end_and_full_size() {
+        let place = UndoPlace {
+            rect: rect(100, 500),
+            bottom_anchored: false,
+            right_anchored: true,
+            full_h: 800,
+            full_w: 500,
+        };
+        let g = undo_geometry(&place, TitleEdge::Right, true, false);
+        assert_eq!(
+            (g.kept_end, g.kept, g.full_w),
+            (Some(true), true, Some(500))
+        );
+        assert_eq!((g.rect.top, g.rect.bottom, g.full_h), (100, 900, 800));
+        // The column sits at the right of the rect: its left edge 36 px inside the right one.
+        assert_eq!(
+            crate::fence_window::anchored_start(g.rect.left, 300, BAR, 1.0),
+            364
+        );
+        // Open, it keeps its window rect and still gets its full width back.
+        let g = undo_geometry(&place, TitleEdge::Left, false, false);
+        assert_eq!(
+            (g.rect, g.kept_end, g.full_w),
+            (place.rect, None, Some(500))
         );
     }
 
@@ -362,10 +422,15 @@ mod tests {
         let place = UndoPlace {
             rect: rect(700, 1036),
             bottom_anchored: true,
+            right_anchored: false,
             full_h: 600,
+            full_w: 300,
         };
         let g = undo_geometry(&place, TitleEdge::Top, true, false);
-        assert_eq!((g.full_h, g.kept_end, g.kept), (336, None, false));
+        assert_eq!(
+            (g.full_h, g.kept_end, g.kept, g.full_w),
+            (336, None, false, None)
+        );
         let g = undo_geometry(&place, TitleEdge::Top, true, true);
         assert_eq!((g.kept_end, bar_top(&g)), (Some(true), 1000));
         let g = undo_geometry(&place, TitleEdge::Top, false, true);

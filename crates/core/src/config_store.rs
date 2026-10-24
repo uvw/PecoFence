@@ -437,13 +437,22 @@ fn size_in_range(g: &NormGeometry) -> (f32, f32) {
 }
 
 /// Brings fence sizes outside 1 to 8192 DIP (a hand-edited file) into that range, for the app
-/// to load or import the file with just those sizes changed. True when one changed.
+/// to load or import the file with just those sizes changed; that includes a title column's
+/// `expandedW`, which is dropped when it is no number. True when one changed.
 pub fn clamp_sizes(cfg: &mut Config) -> bool {
     let mut changed = false;
     for f in cfg.layouts.iter_mut().flat_map(|l| &mut l.fences) {
         let (w, h) = size_in_range(&f.geometry);
         if (w, h) != (f.geometry.w, f.geometry.h) {
             (f.geometry.w, f.geometry.h) = (w, h);
+            changed = true;
+        }
+        let full_w = f
+            .expanded_w
+            .filter(|w| w.is_finite())
+            .map(|w| w.clamp(1.0, MAX_DIP));
+        if full_w != f.expanded_w {
+            f.expanded_w = full_w;
             changed = true;
         }
     }
@@ -1101,8 +1110,10 @@ mod tests {
             c.layouts[0].fences[0].geometry.clone(),
         );
         b.geometry.h = 0.0;
+        b.expanded_w = Some(f32::NAN);
         c.layouts[0].fences[0].geometry.w = 1e9;
         c.layouts[0].fences[0].geometry.h = -500.0;
+        c.layouts[0].fences[0].expanded_w = Some(1e30);
         c.layouts[0].fences.push(b);
         fs::create_dir_all(store.dir()).unwrap();
         fs::write(store.primary_path(), serde_json::to_string(&c).unwrap()).unwrap();
@@ -1124,6 +1135,9 @@ mod tests {
         let g = &loaded.layouts[0].fences[0].geometry;
         assert_eq!((g.w, g.h), (8192.0, 1.0));
         assert_eq!(loaded.layouts[0].fences[1].geometry.h, 1.0);
+        // A huge `expandedW` comes into range too; one that is no number goes.
+        assert_eq!(loaded.layouts[0].fences[0].expanded_w, Some(8192.0));
+        assert_eq!(loaded.layouts[0].fences[1].expanded_w, None);
         assert!(!clamp_sizes(&mut loaded));
         assert!(
             lint(&loaded)

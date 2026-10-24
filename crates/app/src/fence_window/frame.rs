@@ -135,13 +135,12 @@ impl FrameHandle {
             v.refresh_backdrop();
         }
         // Phase 1: compute under a short borrow.
-        let (height, more, (upward, anchor)) = {
+        let (height, more, (up, anchor)) = {
             let mut guard = self.view.borrow_mut();
             let Some(v) = guard.as_mut() else {
                 return false;
             };
-            // A collapse to a left tab column or a shrinking title row (or an expand from it) also
-            // moves the width.
+            // A collapse to a title column (or an expand from it) also moves the width.
             let width = v
                 .roll_anim
                 .as_ref()
@@ -164,7 +163,7 @@ impl FrameHandle {
             (
                 height.map(|(h, done, rolled)| (width, h, done, rolled)),
                 more,
-                (v.anim_upward, v.width_anchor()),
+                (v.height_anchor(), v.width_anchor()),
             )
         };
         // Phase 2: window geometry with no borrow held (WM_SIZE re-enters the handler; while
@@ -174,7 +173,8 @@ impl FrameHandle {
         };
         let r = window::window_rect(hwnd);
         let w = w.unwrap_or(r.right - r.left);
-        let top = top_for_height(upward, &r, h);
+        // Each frame places the top and left edges so the anchored edges stay put.
+        let top = super::anchored_start(r.top, r.bottom - r.top, h, up);
         let left = self.pivoted_left(&r, w, anchor);
         let _ = window::set_window_bounds(hwnd, left, top, w, h);
         if !done {
@@ -208,10 +208,14 @@ impl FrameHandle {
             // Rolled up with 向上展开 switched off meanwhile: the row stays, and from now on it
             // is the top of the fence again (the bounds recorded below hang the rect below it).
             // A bottom title row keeps the edge it opened from either way.
-            if rolled_at_end == Some(true) && !v.expand_upward && !v.title_bottom() {
-                v.row_bottom = false;
+            if rolled_at_end == Some(true)
+                && !v.expand_upward
+                && !v.side_column()
+                && !v.title_bottom()
+            {
+                v.kept_end = false;
             }
-            v.anim_upward = v.row_bottom;
+            v.anim_end = v.kept_end;
             (v.queue.clone(), v.behavior.clone())
         };
         queue_bounds_changed(&queue, &behavior, self.id, hwnd);
