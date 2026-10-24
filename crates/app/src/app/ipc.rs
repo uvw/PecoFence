@@ -243,6 +243,14 @@ fn desktop_arranged_error() -> IpcError {
     .hint("fence set inbox desktopLayout false makes it a fence again")
 }
 
+/// 像桌面一样排列 leaves the inbox without a title bar, so its title bar options do nothing.
+fn desktop_arranged_title_error(prop: &str) -> IpcError {
+    unsupported(format!(
+        "{prop} is a title bar option, and the inbox arranged like the desktop (desktopLayout) has no title bar"
+    ))
+    .hint("fence set inbox desktopLayout false gives it a title bar again")
+}
+
 /// `invalid_path` naming the keys that do exist at the deepest valid prefix of `path`.
 fn invalid_path(root: &Value, path: &str) -> IpcError {
     let mut node = root;
@@ -871,6 +879,9 @@ impl App {
                         }
                     ))
                     .hint("fence list shows each fence's tool"));
+                }
+                if prop.is_title_bar_option() && self.is_desktop_arranged(fence) {
+                    return Err(desktop_arranged_title_error(prop_name));
                 }
                 // Icon size, spacing, layout and label lines snap the window to whole cells
                 // (snapping.sizeToCells) or fit it to the content: report it instead of letting the caller find out from
@@ -1642,6 +1653,9 @@ impl App {
             title_color: with_hash(text("titleColor")),
             title_size: text("titleSize"),
             title_on_hover: text("titleOnHover"),
+            title_align: text("titleAlign"),
+            collapsed_size: text("collapsedSize"),
+            collapsed_shrinks: flag("collapsedShrinks"),
             layout: layout_name(f.view.layout).to_string(),
             sort: sort_name(f.view.sort).to_string(),
             reverse: f.view.reverse,

@@ -106,6 +106,21 @@ impl FrameHandle {
         self.hwnd
     }
 
+    /// Left edge of the window at `r` going `w` wide around `anchor` (`anchored_start`). Around a
+    /// centre each change's rounding would add up, so the pivot is kept (`pivot_left`).
+    pub(super) fn pivoted_left(&self, r: &RECT, w: i32, anchor: f32) -> i32 {
+        if anchor <= 0.0 || anchor >= 1.0 {
+            return super::anchored_start(r.left, r.right - r.left, w, anchor);
+        }
+        let mut left = r.left;
+        if let Some(v) = self.view.borrow_mut().as_mut() {
+            let (l, kept) = pivot_left(v.width_pivot, r.left, r.right - r.left, w, anchor);
+            v.width_pivot = Some(kept);
+            left = l;
+        }
+        left
+    }
+
     /// One compositor frame: advances the roll / auto-height animation and every other client
     /// tween. Returns true while something still moves (the app then asks the frame clock for
     /// the next frame). Re-entrancy: the window is resized with no borrow held.
@@ -120,13 +135,13 @@ impl FrameHandle {
             v.refresh_backdrop();
         }
         // Phase 1: compute under a short borrow.
-        let (height, more, upward) = {
+        let (height, more, (upward, anchor)) = {
             let mut guard = self.view.borrow_mut();
             let Some(v) = guard.as_mut() else {
                 return false;
             };
-            let upward = v.anim_upward;
-            // A collapse to a left tab column (or an expand from it) also moves the width.
+            // A collapse to a left tab column or a shrinking title row (or an expand from it) also
+            // moves the width.
             let width = v
                 .roll_anim
                 .as_ref()
@@ -149,7 +164,7 @@ impl FrameHandle {
             (
                 height.map(|(h, done, rolled)| (width, h, done, rolled)),
                 more,
-                upward,
+                (v.anim_upward, v.width_anchor()),
             )
         };
         // Phase 2: window geometry with no borrow held (WM_SIZE re-enters the handler; while
@@ -160,7 +175,8 @@ impl FrameHandle {
         let r = window::window_rect(hwnd);
         let w = w.unwrap_or(r.right - r.left);
         let top = top_for_height(upward, &r, h);
-        let _ = window::set_window_bounds(hwnd, r.left, top, w, h);
+        let left = self.pivoted_left(&r, w, anchor);
+        let _ = window::set_window_bounds(hwnd, left, top, w, h);
         if !done {
             return true;
         }

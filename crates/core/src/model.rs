@@ -147,7 +147,8 @@ pub struct Settings {
     /// Colour of the item names in every fence; fence titles have their own `titleColor`.
     #[serde(default)]
     pub label_color: LabelColor,
-    /// Where every fence's title (or tab strip) sits in its title row.
+    /// Where every fence's title (or tab strip) sits in its title row, unless the fence's
+    /// `appearance.titleAlign` says otherwise.
     #[serde(default)]
     pub title_align: TitleAlign,
     /// Where a fence with two or more tabs shows them.
@@ -459,8 +460,9 @@ pub enum LabelColor {
     Black,
 }
 
-/// Title position in the title row (Fences centres it). The chevron zone on the right stays
-/// clear whichever is chosen.
+/// Title position in the title row (Fences centres it). With the global setting the chevron
+/// zone on the right stays clear whichever is chosen; a fence aligned right by its own
+/// `appearance.titleAlign` puts the chevron and item count at the start instead.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[cfg_attr(feature = "schema", derive(schemars::JsonSchema))]
 #[serde(rename_all = "camelCase")]
@@ -916,6 +918,14 @@ pub struct AppearanceOverride {
     /// This fence's bar in a tab strip (None = its tint).
     #[serde(default)]
     pub tab_rgb: Option<[u8; 3]>,
+    /// Where the title sits in its row (None = the global `titleAlign`). Left out of the file at
+    /// its default, so a config that never set it saves as before.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title_align: Option<TitleAlign>,
+    /// Collapsed, the title row shrinks to its title or tabs instead of keeping the fence's
+    /// width (None = it keeps the width).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub shrink_collapsed: Option<bool>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -1155,6 +1165,22 @@ impl Fence {
         self.kind != FenceKind::FolderPortal && self.tool.is_none()
     }
 
+    /// Collapsed, the title row shrinks to its title or tabs
+    /// ([`AppearanceOverride::shrink_collapsed`]).
+    pub fn shrinks_collapsed(&self) -> bool {
+        self.appearance
+            .as_ref()
+            .and_then(|a| a.shrink_collapsed)
+            .unwrap_or(false)
+    }
+
+    /// Changes the appearance override; one left at every default is dropped.
+    pub fn edit_appearance(&mut self, edit: impl FnOnce(&mut AppearanceOverride)) {
+        let mut next = self.appearance.clone().unwrap_or_default();
+        edit(&mut next);
+        self.appearance = (next != AppearanceOverride::default()).then_some(next);
+    }
+
     pub fn contains_item(&self, id: ItemId) -> bool {
         self.items.iter().any(|r| r.item_id == id)
     }
@@ -1319,7 +1345,8 @@ pub struct PendingCreation {
 }
 
 /// Reversible change of tab ownership. Content, names and appearance are deliberately
-/// excluded: cancelling a drag must not undo filesystem refreshes or unrelated edits.
+/// excluded: cancelling a drag must not undo filesystem refreshes or unrelated edits. The title
+/// bar settings (`TitleBar`) are the exception: they belong to the window, so they come back.
 #[derive(Clone, Debug)]
 pub struct TabDetach {
     pub tab: FenceId,
@@ -1341,6 +1368,31 @@ struct TabPlacement {
     /// 向上展开, and which end of `geometry` the rolled title row sits at.
     expand_upward: bool,
     bottom_anchored: bool,
+    title: TitleBar,
+}
+
+/// A group's title bar settings, which belong to the window: the host carries them.
+#[derive(Clone, Copy, Debug)]
+struct TitleBar {
+    align: Option<TitleAlign>,
+    shrink_collapsed: Option<bool>,
+}
+
+impl TitleBar {
+    fn of(fence: &Fence) -> Self {
+        let a = fence.appearance.clone().unwrap_or_default();
+        Self {
+            align: a.title_align,
+            shrink_collapsed: a.shrink_collapsed,
+        }
+    }
+
+    fn apply(self, fence: &mut Fence) {
+        fence.edit_appearance(|a| {
+            a.title_align = self.align;
+            a.shrink_collapsed = self.shrink_collapsed;
+        });
+    }
 }
 
 impl TabPlacement {
@@ -1356,6 +1408,7 @@ impl TabPlacement {
             auto_height: fence.view.auto_height,
             expand_upward: fence.expand_upward,
             bottom_anchored: fence.bottom_anchored,
+            title: TitleBar::of(fence),
         }
     }
 
@@ -1369,6 +1422,7 @@ impl TabPlacement {
         fence.view.auto_height = self.auto_height;
         fence.expand_upward = self.expand_upward;
         fence.bottom_anchored = self.bottom_anchored;
+        self.title.apply(fence);
     }
 }
 
@@ -1419,6 +1473,7 @@ impl Layout {
                         fence.view.auto_height = group.auto_height;
                         fence.expand_upward = group.expand_upward;
                         fence.bottom_anchored = group.bottom_anchored;
+                        group.title.apply(fence);
                     }
                 } else {
                     fence.tab_host = Some(remaining_host);
@@ -2040,6 +2095,53 @@ pub fn now_unix() -> i64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A fence that never used the title options saves byte for byte as before: none of their
+    /// fields is written at its default, also inside an appearance override.
+    #[test]
+    fn untouched_title_options_are_not_written() {
+        let mut f = Fence::new("A", FenceKind::Virtual, geo());
+        f.edit_appearance(|a| a.tint_title_only = true);
+        let saved = serde_json::to_string(&f).unwrap();
+        for key in ["titleAlign", "shrinkCollapsed"] {
+            assert!(!saved.contains(key), "{key} in {saved}");
+        }
+        let again: Fence = serde_json::from_str(&saved).unwrap();
+        assert_eq!(serde_json::to_string(&again).unwrap(), saved);
+        f.edit_appearance(|a| a.shrink_collapsed = Some(true));
+        assert!(
+            serde_json::to_string(&f)
+                .unwrap()
+                .contains("\"shrinkCollapsed\":true")
+        );
+    }
+
+    /// A fence saved before the title bar options and 向上展开 loads as it was: opening
+    /// downward, its title row at the top of its rect.
+    #[test]
+    fn a_fence_without_the_new_fields_loads_unchanged() {
+        let mut json = serde_json::to_value(Fence::new("A", FenceKind::Virtual, geo())).unwrap();
+        let obj = json.as_object_mut().unwrap();
+        for key in ["expandUpward", "bottomAnchored", "appearance"] {
+            obj.remove(key);
+        }
+        let f: Fence = serde_json::from_value(json).unwrap();
+        assert!(!f.expand_upward && !f.bottom_anchored);
+        assert!(!f.shrinks_collapsed());
+        assert!(f.appearance.is_none());
+        // An appearance override from before the title options keeps its defaults too.
+        let a: AppearanceOverride =
+            serde_json::from_value(serde_json::json!({ "tintTitleOnly": true })).unwrap();
+        assert_eq!((a.title_align, a.shrink_collapsed), (None, None));
+    }
+
+    #[test]
+    fn a_collapsed_title_row_shrinks_only_when_told_to() {
+        let mut f = Fence::new("A", FenceKind::Virtual, geo());
+        assert!(!f.shrinks_collapsed());
+        f.edit_appearance(|a| a.shrink_collapsed = Some(true));
+        assert!(f.shrinks_collapsed());
+    }
 
     #[test]
     fn search_history_counts_and_ages() {
@@ -2676,6 +2778,31 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn the_host_leaving_hands_its_title_bar_to_the_next_host() {
+        let mut a = Fence::new("A", FenceKind::Virtual, geo());
+        let mut b = Fence::new("B", FenceKind::Virtual, geo());
+        let (aid, bid) = (a.id, b.id);
+        b.tab_host = Some(aid);
+        a.tab_order = vec![aid, bid];
+        a.edit_appearance(|t| {
+            t.title_align = Some(TitleAlign::Center);
+            t.shrink_collapsed = Some(true);
+        });
+        let mut layout = Layout {
+            shown: 0,
+            fingerprint: vec![],
+            fences: vec![a, b],
+        };
+        layout.detach_tab(aid).unwrap();
+        let b = layout.fences.iter().find(|f| f.id == bid).unwrap();
+        assert!(b.shrinks_collapsed());
+        assert_eq!(
+            b.appearance.as_ref().unwrap().title_align,
+            Some(TitleAlign::Center)
+        );
     }
 
     #[test]

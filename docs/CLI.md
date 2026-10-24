@@ -179,7 +179,8 @@ fence), `tint` `"#RRGGBB"` or `null`, `tintTitleOnly` (the tint washes only the 
 `tabColor` `"#RRGGBB"` or `null` (the bar under the fence's tab in a tab strip; `null` follows its
 tint), `titleColor` theme/tint/white/black/`"#RRGGBB"`, `titleSize` small/normal/large/extraLarge,
 `titleOnHover` default/hover/always (hover: the title row folds away until the pointer is over the
-fence; default follows `rollUp.titleOnHover`), `layout` icons/list/details,
+fence; default follows `rollUp.titleOnHover`), `titleAlign` and `collapsedSize` (title bar
+options, below), `layout` icons/list/details,
 `sort` manual/name/type/date/size/openCount, `reverse`, `groupByDate`, `foldersFirst` (folders above files in a sorted fence), `labelLines` 0/1/2/3 (lines
 of the label under each icon in the icons layout; 0 shows the icons without labels),
 `openFoldersInside` (any fence but a portal: double-clicking a folder, or a shortcut to a folder,
@@ -197,6 +198,17 @@ starting with `[ ]` or `[x]` is a to-do), `scriptPath` (script fences: the full 
 it runs at once) and `scriptInterval` (script fences: minutes between runs, 1 to 1440).
 `--all` applies the option to every fence one call at a time and
 skips tabs hosted inside another fence (their options belong to the host).
+
+The title bar options of `fence set`:
+
+- `titleAlign` default/left/center/right. Default follows the `titleAlign` setting. Set to right
+  here, the chevron and item count move to the start of the title row, even when the setting is
+  right too.
+- `collapsedSize` default/fit/full. Fit makes a collapsed title row only as long as its title or
+  tabs, and default keeps it at the fence's width. `true` and `false` mean fit and full.
+  `fence get` adds `collapsedShrinks`, the effective choice.
+- The inbox arranged like the desktop (`desktopLayout`) has no title bar, so it refuses these
+  options as `unsupported`.
 
 `item list` describes every item with `kind` (`folders`, `programs`, `installers`, `shortcuts`,
 `documents`, `images`, `music`, `video`, `archives`, `namespace`, `other`; the same tests the `type`
@@ -269,7 +281,8 @@ the desktop, or a rule for files of one type dragged into one fence; each shows 
 Peek open by pressing Ctrl twice quickly, with its search box, instead of the shortcut, which stays
 saved but is not registered; setting `peek.hotkey` or `peek.customHotkey` turns it off; works only
 while `peek.enabled` is on; default off), `quickHide.enabled`,
-`titleAlign` (left/center/right: the title and tab strip in every title row),
+`titleAlign` (left/center/right: the title and tab strip in every title row, unless the fence sets
+its own `titleAlign`),
 `labelColor` (「文字颜色」 on the settings page; auto/white/black: the item names in every fence and view; auto picks dark or light
 names from the wallpaper in Liquid Glass and follows the colour mode in Fluent; white and black
 also colour the titles, tabs and item counts of fences whose `titleColor` is `theme`, while a fence

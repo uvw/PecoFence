@@ -57,7 +57,7 @@
         el('span', 'plus', r.newBtn, '+');
         el('span', null, r.newBtn, '新建栅栏');
         r.menu2 = menu(S, ['收起', '重命名…', '-', { t: '视图', sub: 1 }, { t: '排序方式', sub: 1 }, { t: '新建', sub: 1 },
-            { t: '粘贴', key: 'Ctrl+V', dis: 1 }, { t: '标签页', sub: 1 }, '-', '锁定位置和大小', '栅栏选项…', '删除栅栏', '-',
+            { t: '粘贴', key: 'Ctrl+V', dis: 1 }, { t: '标签页', sub: 1 }, '-', { t: '标题栏', sub: 1 }, '适应内容大小', '锁定位置和大小', '栅栏选项…', '删除栅栏', '-',
             { t: '添加到桌面', sub: 1 }], 196);
         r.keys = el('div', 'keys', S);
         r.ptr = pointer(S);

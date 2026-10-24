@@ -804,5 +804,15 @@
   "改用 1.5": "Passa alla 1.5",
   "已改用 Everything 1.5，以后登录 Windows 时也会启动它": "Ora si usa Everything 1.5. Da adesso si avvia anche all’accesso a Windows",
   "已复制": "Copiato",
-  "复制失败，请重试": "Copia non riuscita. Riprova."
+  "复制失败，请重试": "Copia non riuscita. Riprova.",
+  "每个栅栏可在“栅栏”页单独设置": "Puoi modificare questa impostazione per ogni riquadro nella pagina «Riquadri»",
+  "标题栏": "Barra del titolo",
+  "收起时缩短": "Accorcia quando è compresso",
+  "收起后标题栏只有标题或标签页那么长，而不是和栅栏一样长": "Una volta compressa, la barra del titolo è lunga quanto il titolo o le schede, non quanto il riquadro",
+  "对齐方式": "Allineamento",
+  "“标题栏”中的设置也对整组标签页生效，标题颜色和标题字号除外": "Anche le impostazioni di «Barra del titolo» si applicano all’intero gruppo di schede, tranne il colore e la dimensione del titolo",
+  "标签排成一列时从上往下排，不跟随标题对齐": "Le schede in colonna partono dall’alto, qualunque sia l’allineamento",
+  "标签栏位置为左侧时，收起的栅栏总是缩成标签那一列": "Con la barra delle schede a sinistra, un riquadro compresso si riduce sempre alla sua colonna di schede",
+  "标题栏排成一列时总是显示": "Una barra del titolo in colonna è sempre visibile",
+  "像桌面一样排列时没有标题栏": "Disposto come il desktop, questo riquadro non ha la barra del titolo"
 }

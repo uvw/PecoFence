@@ -158,6 +158,7 @@
   "颜色模式": "Mode de couleur",
   "自动": "Automatique",
   "标题对齐": "Alignement du titre",
+  "每个栅栏可在“栅栏”页单独设置": "Réglable pour chaque groupe dans la page « Groupes »",
   "左对齐": "À gauche",
   "居中": "Centré",
   "右对齐": "À droite",
@@ -396,6 +397,7 @@
   "跟随常规设置": "Selon le réglage Général",
   "始终显示": "Toujours",
   "鼠标悬停时显示": "Au survol",
+  "标题栏": "Barre de titre",
   "也可以在栅栏内按住 Ctrl 滚动鼠标滚轮": "Aussi réglable avec Ctrl+molette dans un groupe",
   "高度跟随内容行数，内容增减时平滑过渡": "La hauteur s’ajuste doucement au nombre de lignes",
   "边框不再可拖动缩放；标题仍可点击、右键、双击": "Désactiver le redimensionnement ; clics et menu du titre restent disponibles",
@@ -804,5 +806,13 @@
   "改用 1.5": "Passer à la 1.5",
   "已改用 Everything 1.5，以后登录 Windows 时也会启动它": "Passé à Everything 1.5. Il démarre désormais aussi à l’ouverture de session Windows",
   "已复制": "Copié",
-  "复制失败，请重试": "Échec de la copie. Réessayez."
+  "复制失败，请重试": "Échec de la copie. Réessayez.",
+  "收起时缩短": "Raccourcir une fois replié",
+  "收起后标题栏只有标题或标签页那么长，而不是和栅栏一样长": "Repliée, la barre de titre ne fait que la longueur de son titre ou de ses onglets, pas celle du groupe",
+  "对齐方式": "Alignement",
+  "“标题栏”中的设置也对整组标签页生效，标题颜色和标题字号除外": "Les options de « Barre de titre » s’appliquent aussi à tous les onglets du groupe, sauf la couleur et la taille du titre",
+  "标签排成一列时从上往下排，不跟随标题对齐": "Les onglets en colonne partent du haut, quel que soit l’alignement",
+  "标签栏位置为左侧时，收起的栅栏总是缩成标签那一列": "Avec la barre d’onglets à gauche, un groupe replié se réduit toujours à sa colonne d’onglets",
+  "标题栏排成一列时总是显示": "Une barre de titre en colonne est toujours affichée",
+  "像桌面一样排列时没有标题栏": "Disposé comme le bureau, ce groupe n’a pas de barre de titre"
 }

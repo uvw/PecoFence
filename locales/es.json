@@ -152,6 +152,7 @@
   "颜色模式": "Modo de color",
   "自动": "Automático",
   "标题对齐": "Alineación del título",
+  "每个栅栏可在“栅栏”页单独设置": "Puedes cambiarlo en cada grupo desde la página Grupos",
   "左对齐": "Izquierda",
   "居中": "Centro",
   "右对齐": "Derecha",
@@ -372,6 +373,7 @@
   "跟随常规设置": "Según el ajuste General",
   "始终显示": "Siempre",
   "鼠标悬停时显示": "Al pasar el cursor",
+  "标题栏": "Barra de título",
   "也可以在栅栏内按住 Ctrl 滚动鼠标滚轮": "También puedes mantener presionada la tecla Ctrl y girar la rueda dentro de un grupo",
   "高度跟随内容行数，内容增减时平滑过渡": "La altura se ajusta suavemente al número de filas",
   "边框不再可拖动缩放；标题仍可点击、右键、双击": "Desactivar el cambio de tamaño; los clics y el menú del título siguen disponibles",
@@ -804,5 +806,13 @@
   "改用 1.5": "Cambiar a 1.5",
   "已改用 Everything 1.5，以后登录 Windows 时也会启动它": "Ahora se usa Everything 1.5. A partir de ahora también se inicia al entrar en Windows",
   "已复制": "Copiado",
-  "复制失败，请重试": "No se pudo copiar. Inténtalo de nuevo."
+  "复制失败，请重试": "No se pudo copiar. Inténtalo de nuevo.",
+  "收起时缩短": "Acortar al contraer",
+  "收起后标题栏只有标题或标签页那么长，而不是和栅栏一样长": "Con el grupo contraído, la barra de título solo ocupa el largo de su título o sus pestañas, no el del grupo",
+  "对齐方式": "Alineación",
+  "“标题栏”中的设置也对整组标签页生效，标题颜色和标题字号除外": "Las opciones de «Barra de título» también se aplican a todas las pestañas del grupo, salvo el color y el tamaño del título",
+  "标签排成一列时从上往下排，不跟随标题对齐": "Las pestañas en columna se colocan desde arriba, sin seguir la alineación",
+  "标签栏位置为左侧时，收起的栅栏总是缩成标签那一列": "Con la barra de pestañas a la izquierda, un grupo contraído siempre se reduce a su columna de pestañas",
+  "标题栏排成一列时总是显示": "Una barra de título en columna siempre se muestra",
+  "像桌面一样排列时没有标题栏": "Organizado como el escritorio, este grupo no tiene barra de título"
 }

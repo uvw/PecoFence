@@ -36,6 +36,9 @@ struct Slot {
     id: FenceId,
     left: i32,
     right: i32,
+    /// Left and right edges of the width it opens to: a title row shrunk while rolled up
+    /// (`footprint_rect`) picks its side from the room over that width.
+    span: (i32, i32),
     /// Window top now, and where it rests.
     top: i32,
     base: i32,
@@ -91,9 +94,14 @@ impl Slot {
 
 /// `f` rests above `g`'s title row, on the same screen, sharing some of its width.
 fn rests_above(f: &Slot, g: &Slot) -> bool {
+    rests_above_span(f, g, (g.left, g.right))
+}
+
+/// [`rests_above`] with `g` taken as wide as `span`.
+fn rests_above_span(f: &Slot, g: &Slot, span: (i32, i32)) -> bool {
     f.work.map(|w| w.0) == g.work.map(|w| w.0)
-        && f.left < g.right
-        && g.left < f.right
+        && f.left < span.1
+        && span.0 < f.right
         && f.rest_bottom() <= g.row_top()
 }
 
@@ -224,7 +232,7 @@ fn rooms(slots: &[Slot]) -> Vec<(HWND, i32)> {
         let mut reach = work_top;
         for &i in &order[..k] {
             let g = &slots[i];
-            if rests_above(g, s) {
+            if rests_above_span(g, s, s.span) {
                 reach = reach.max(floor[i] + g.rest_h + up_slack(g, s));
             }
         }
@@ -326,6 +334,10 @@ impl App {
                     id,
                     left: r.left,
                     right: r.right,
+                    span: {
+                        let room = self.room_rect(id, w);
+                        (room.left, room.right)
+                    },
                     top: r.top,
                     base,
                     h,
@@ -425,9 +437,10 @@ impl App {
                 None => {
                     let others = self.other_fence_rects(id);
                     let gap = self.gap_px(w.hwnd());
-                    let top = crate::layout::clearance::limit_above(&others, &r, gap)
+                    let span = self.room_rect(id, w);
+                    let top = crate::layout::clearance::limit_above(&others, &span, gap)
                         .map_or(wa.top, |t| t.max(wa.top));
-                    let bottom = crate::layout::clearance::limit_below(&others, &r, gap)
+                    let bottom = crate::layout::clearance::limit_below(&others, &span, gap)
                         .map_or(wa.bottom, |b| b.min(wa.bottom));
                     (r.bottom - top, bottom - r.top)
                 }
@@ -435,6 +448,21 @@ impl App {
             rooms.push((w.hwnd(), room.0, room.1));
         }
         *self.ctx.behavior.expand_room.borrow_mut() = rooms;
+    }
+
+    /// The window of fence `id`, as wide as it opens to when its title row is shrunk while
+    /// rolled up (`footprint_rect`): the span its room is measured over.
+    fn room_rect(&self, id: FenceId, w: &FenceWindow) -> RECT {
+        let r = w.rect();
+        if !self.state.fence(id).is_some_and(|f| f.shrinks_collapsed()) {
+            return r;
+        }
+        let full = w.footprint_rect();
+        RECT {
+            left: full.left,
+            right: full.right,
+            ..r
+        }
     }
 
     /// Records host `id` at `rect`, a window rectangle, without the push shift (see the module
@@ -492,8 +520,25 @@ impl App {
                         rect.bottom = rect.top + h;
                     }
                 }
-                // Collapsed to its left tab column: the fence keeps the width it expands to.
+                // A shrunk title row opening: the width it ends at, as for the height.
+                if !rolled && let Some(ew) = w.shrink_end_width_px() {
+                    rect.left = crate::fence_window::anchored_start(
+                        rect.left,
+                        rect.right - rect.left,
+                        ew,
+                        w.width_anchor(),
+                    );
+                    rect.right = rect.left + ew;
+                }
+                // Collapsed to its left tab column or a shrunk title row: the fence keeps the width
+                // it expands to.
                 if rolled && let Some(ew) = w.collapsed_expanded_width_px() {
+                    rect.left = crate::fence_window::anchored_start(
+                        rect.left,
+                        rect.right - rect.left,
+                        ew,
+                        w.width_anchor(),
+                    );
                     rect.right = rect.left + ew;
                 }
                 let choose = rolled
@@ -532,6 +577,7 @@ mod tests {
             id: FenceId::from_u128(n),
             left: x,
             right: x + 240,
+            span: (x, x + 240),
             top: y,
             base: y,
             h,
@@ -818,6 +864,24 @@ mod tests {
         assert_eq!(room(&s, 2), Some(936 - 544));
         // Nothing above: the whole work area.
         assert_eq!(room(&[upward(1, 0, 900, TITLE, TITLE)], 1), Some(936));
+    }
+
+    /// A title row shrunk while rolled up (60 px of its 240) picks its side from the room over
+    /// the width it opens to: a fixed fence above that width bounds it, not just one above the bar.
+    #[test]
+    fn a_shrunk_row_measures_its_room_over_its_full_width() {
+        let shrunk = |span| Slot {
+            right: 60,
+            span,
+            ..upward(1, 0, 500, TITLE, TITLE)
+        };
+        let above = || Slot {
+            role: Role::Fixed,
+            ..slot(2, 150, 100, 200, 200)
+        };
+        assert_eq!(room(&[shrunk((0, 240)), above()], 1), Some(536 - 308));
+        // Over the bar alone, the fence above does not count.
+        assert_eq!(room(&[shrunk((0, 60)), above()], 1), Some(536));
     }
 
     #[test]
